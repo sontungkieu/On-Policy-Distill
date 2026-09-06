@@ -1,0 +1,20 @@
+FROM ghcr.io/astral-sh/uv:0.10.2 AS uv
+
+FROM pytorch/pytorch:2.9.0-cuda12.8-cudnn9-runtime@sha256:f0ca81b440e252399d9954a45b616ee2540959466aacf3dfc3f856691eee66e8
+
+COPY --from=uv /uv /uvx /bin/
+
+WORKDIR /opt/dpca
+
+COPY reproduction/pyproject.toml reproduction/uv.lock /opt/repro-env/
+RUN env -u UV_INDEX_URL -u UV_DEFAULT_INDEX -u PIP_INDEX_URL -u PIP_TRUSTED_HOST \
+      uv export --project /opt/repro-env --locked --no-dev --no-emit-project --no-hashes \
+      --output-file /tmp/requirements.lock.txt \
+    && uv pip install --system --no-cache --requirements /tmp/requirements.lock.txt \
+    && rm /tmp/requirements.lock.txt
+
+COPY . /opt/dpca
+RUN uv pip install --system --no-deps /opt/dpca \
+    && python -m compileall -q /opt/dpca/reproduction
+
+CMD ["python", "reproduction/dpca_contract_smoke.py"]

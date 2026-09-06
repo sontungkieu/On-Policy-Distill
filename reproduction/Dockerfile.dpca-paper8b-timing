@@ -1,0 +1,46 @@
+FROM pytorch/pytorch:2.9.0-cuda12.8-cudnn9-runtime@sha256:f0ca81b440e252399d9954a45b616ee2540959466aacf3dfc3f856691eee66e8
+
+RUN python -m pip install --no-cache-dir uv==0.10.2 \
+    && test "$(uv --version)" = "uv 0.10.2"
+
+ENV UV_LINK_MODE=copy \
+    UV_NO_PROGRESS=1 \
+    TOKENIZERS_PARALLELISM=false \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    WANDB_MODE=online
+
+WORKDIR /opt/dpca
+
+COPY reproduction/pyproject.toml reproduction/uv.lock /opt/repro-env/
+RUN env -u UV_INDEX_URL -u UV_DEFAULT_INDEX -u PIP_INDEX_URL -u PIP_TRUSTED_HOST \
+      uv export --project /opt/repro-env --locked --no-dev --no-emit-project --no-hashes \
+      --output-file /tmp/requirements.lock.txt \
+    && env -u UV_INDEX_URL -u UV_DEFAULT_INDEX -u PIP_INDEX_URL -u PIP_TRUSTED_HOST \
+      uv pip install --system --no-cache --requirements /tmp/requirements.lock.txt \
+    && rm /tmp/requirements.lock.txt
+
+COPY . /opt/dpca
+RUN uv pip install --system --no-deps /opt/dpca \
+    && python -m compileall -q /opt/dpca/reproduction
+
+ARG TEACHER_REPO=Qwen/Qwen3-8B
+ARG TEACHER_REVISION=b968826d9c46dd6066d109eabc6255188de91218
+ARG STUDENT_REPO=unsloth/Meta-Llama-3.1-8B-Instruct
+ARG STUDENT_REVISION=a2856192dd7c25b842431f39c179a6c2c2f627d1
+ARG REPO_COMMIT=927a8264f2e303b7f82c2d331a58fd4240c8805a
+
+RUN test "${REPO_COMMIT}" = "927a8264f2e303b7f82c2d331a58fd4240c8805a"
+
+RUN python reproduction/download_models.py \
+      --repo-id "${TEACHER_REPO}" --revision "${TEACHER_REVISION}" --output /opt/models/teacher \
+    && python reproduction/download_models.py \
+      --repo-id "${STUDENT_REPO}" --revision "${STUDENT_REVISION}" --output /opt/models/student
+
+LABEL org.opencontainers.image.source="https://github.com/ivanniu/On-Policy-Distill" \
+      org.opencontainers.image.revision="${REPO_COMMIT}" \
+      org.opencontainers.image.title="DPCA paper-pair two-B200 timing qualification" \
+      ai.dpca.runtime="uv-lock" \
+      ai.dpca.gpu-topology="2xB200" \
+      ai.dpca.evidence="timing-qualification"
+
+CMD ["python", "/opt/dpca/reproduction/dpca_2gpu_train.py", "--config", "/opt/dpca/reproduction/configs/dpca_paper8b_2gpu_10step_timing.json", "--output-root", "/runs"]

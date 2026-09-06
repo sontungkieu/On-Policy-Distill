@@ -1,0 +1,61 @@
+{
+  "run_id": "dpca-paper8b-timing-2xb200-10step-20260906-r1",
+  "evidence_class": "timing_qualification",
+  "source_commit": "927a8264f2e303b7f82c2d331a58fd4240c8805a",
+  "teacher": {
+    "repo_id": "Qwen/Qwen3-8B",
+    "revision": "b968826d9c46dd6066d109eabc6255188de91218",
+    "container_path": "/opt/models/teacher"
+  },
+  "student": {
+    "repo_id": "unsloth/Meta-Llama-3.1-8B-Instruct",
+    "revision": "a2856192dd7c25b842431f39c179a6c2c2f627d1",
+    "container_path": "/opt/models/student"
+  },
+  "prompts_path": "/opt/dpca/reproduction/prompts/dpca_10step_prompts.json",
+  "optimizer": {
+    "name": "AdamW",
+    "steps": 10,
+    "learning_rate": 1e-6,
+    "warmup_steps": 10,
+    "weight_decay": 0.01,
+    "gradient_clip": 1.0
+  },
+  "rollout": {
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "top_k": 0,
+    "min_new_tokens": 16,
+    "max_new_tokens": 64
+  },
+  "opd": {
+    "objective": "semantic-prior-clipped-pg",
+    "variant": "upstream-code",
+    "clip_ratio_low": 0.2,
+    "clip_ratio_high": 0.28,
+    "clip_ratio_c": 10.0,
+    "loss_max_clamp": 10.0,
+    "large_chunk_threshold": 6,
+    "loss_agg_mode": "token-mean"
+  },
+  "precision": "bfloat16",
+  "seed": 44,
+  "wandb_project": "dpca-breaking-token-barrier-reproduction",
+  "tracking": {
+    "framework": "pytorch",
+    "method": "dpca",
+    "regime": "on-policy",
+    "platform": "modal",
+    "accelerator": "b200x2"
+  },
+  "timing_scope": {
+    "scientific_reference_profile": "paper_8b",
+    "microbenchmark": true,
+    "actual_global_batch_size": 1,
+    "actual_prompt_source": "ten-versioned-arithmetic-prompts",
+    "actual_response_cap": 64,
+    "paper_response_cap": 16384,
+    "paper_global_batch_size": 128,
+    "not_an_efficacy_run": true
+  }
+}

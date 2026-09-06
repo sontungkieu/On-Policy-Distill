@@ -1,0 +1,27 @@
+[project]
+name = "dpca-reproduction-runtime"
+version = "0.1.0"
+description = "Locked runtime for DPCA qualification across one, two, or four B200 actor GPUs"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "codetiming==1.4.0",
+  "hydra-core==1.3.2",
+  "huggingface-hub==0.36.0",
+  "numpy==1.26.4",
+  "omegaconf==2.3.0",
+  "packaging==25.0",
+  "psutil==7.0.0",
+  "pyzmq==27.1.0",
+  "ray[default]==2.53.0",
+  "safetensors==0.6.2",
+  "tensorboard==2.20.0",
+  "tensordict==0.10.0",
+  "tokenizers==0.22.1",
+  "torch==2.9.0",
+  "torchdata==0.11.0",
+  "transformers==4.57.3",
+  "wandb==0.21.1",
+]
+
+[tool.uv]
+package = false
