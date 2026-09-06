@@ -125,6 +125,14 @@ checkpoint:
   # Whether to save checkpoints asynchronously. Only effective for Megatron as of now.
   async_save: False
 
+  # Also emit/load a torch.distributed.checkpoint payload. DCP can reshard the
+  # model and optimizer when a run resumes with a different worker world size.
+  portable: False
+
+  # Cross-topology resumes cannot replay rank-local RNG streams exactly. They
+  # restart them deterministically from this seed, global step, and new rank.
+  portable_seed: 44
+
 # optimizer configs
 optim:
 

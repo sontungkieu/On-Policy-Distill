@@ -426,6 +426,19 @@ class RayPPOTrainer:
         self.total_training_steps = total_training_steps
         print(f"Total training steps: {self.total_training_steps}")
 
+        stop_after_global_step = self.config.trainer.get("stop_after_global_step", None)
+        if stop_after_global_step is None:
+            stop_after_global_step = self.total_training_steps
+        stop_after_global_step = int(stop_after_global_step)
+        if not 1 <= stop_after_global_step <= self.total_training_steps:
+            raise ValueError(
+                "trainer.stop_after_global_step must be between 1 and "
+                f"trainer.total_training_steps={self.total_training_steps}; "
+                f"got {stop_after_global_step}"
+            )
+        self.stop_after_global_step = stop_after_global_step
+        print(f"Stop after global step: {self.stop_after_global_step}")
+
         try:
             OmegaConf.set_struct(self.config, True)
             with open_dict(self.config):
@@ -1051,7 +1064,7 @@ class RayPPOTrainer:
             rollout_skip.wrap_generate_sequences()
 
         # add tqdm
-        progress_bar = tqdm(total=self.total_training_steps, initial=self.global_steps, desc="Training Progress")
+        progress_bar = tqdm(total=self.stop_after_global_step, initial=self.global_steps, desc="Training Progress")
 
         # we start from step 1
         self.global_steps += 1
@@ -1095,7 +1108,7 @@ class RayPPOTrainer:
                     repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True
                 )
 
-                is_last_step = self.global_steps >= self.total_training_steps
+                is_last_step = self.global_steps >= self.stop_after_global_step
                 with marked_timer("step", timing_raw):
                     # generate a batch
                     with marked_timer("gen", timing_raw, color="red"):

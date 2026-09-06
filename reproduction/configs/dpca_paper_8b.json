@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "track_id": "paper_8b",
+  "evidence_class": "paper_recipe_qualification",
+  "method": "dpca",
+  "models": {
+    "teacher": {
+      "repo_id": "Qwen/Qwen3-8B",
+      "revision": null,
+      "pin_required_before_execution": true
+    },
+    "student": {
+      "description": "Llama-3.1-8B-SFT initialized from the paper's 400K OpenThoughts SFT phase",
+      "base_repo_id": "meta-llama/Meta-Llama-3.1-8B",
+      "checkpoint_repo_id": null,
+      "revision": null,
+      "pin_required_before_execution": true
+    }
+  },
+  "data": {
+    "sft": {
+      "dataset": "OpenThoughts",
+      "examples": 400000
+    },
+    "opd": {
+      "datasets": ["DeepMath", "OpenThoughts"],
+      "prompts_per_reported_setting": 20000,
+      "manifest_required_before_execution": true
+    }
+  },
+  "scientific": {
+    "global_batch_size": 128,
+    "prompt_max_tokens": 1024,
+    "response_max_tokens": 16384,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "top_k": -1,
+    "samples_per_prompt": 1,
+    "learning_rate": 1e-6,
+    "optimizer": "AdamW",
+    "weight_decay": 0.01,
+    "gradient_clip": 1.0,
+    "precision": "bfloat16",
+    "seed": 44,
+    "ppo_clip_ratio_low": 0.2,
+    "ppo_clip_ratio_high": 0.28,
+    "dual_clip_ratio": 10.0,
+    "opd_advantage_clamp": 10.0
+  },
+  "schedule": {
+    "type": "constant_with_linear_warmup",
+    "planned_total_optimizer_steps": 500,
+    "warmup_optimizer_steps": 10,
+    "qualification_phases": {
+      "warmup": {
+        "start_exclusive": 0,
+        "stop_inclusive": 10
+      },
+      "post_warmup": {
+        "start_exclusive": 10,
+        "stop_inclusive": 20
+      }
+    }
+  },
+  "topologies": {
+    "1": {"nnodes": 1, "gpus_per_node": 1, "fsdp_size": 1, "rollout_tp": 1, "sequence_parallel_size": 1},
+    "2": {"nnodes": 1, "gpus_per_node": 2, "fsdp_size": 2, "rollout_tp": 1, "sequence_parallel_size": 1},
+    "4": {"nnodes": 1, "gpus_per_node": 4, "fsdp_size": 4, "rollout_tp": 1, "sequence_parallel_size": 1}
+  },
+  "teacher_service": {
+    "mode": "external_online_service",
+    "reachable_endpoint_required": true
+  }
+}

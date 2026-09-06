@@ -1092,6 +1092,21 @@ def compute_policy_loss_opd(
         opd_inf_tokens = int((sentinel_mask & resp_mask_bool).sum().item())
         opd_valid_tokens = int(response_mask.sum().item())
         opd_inf_ratio = opd_inf_tokens / max(opd_valid_tokens, 1)
+        opd_chunk_count = 0
+        opd_teacher_truncated_sequences = 0
+        opd_nonempty_sequences = int((resp_mask_bool.sum(dim=-1) > 0).sum().item())
+        if opd_chunk_ids is not None:
+            for seq_id in range(opd_chunk_ids.shape[0]):
+                seq_valid = resp_mask_bool[seq_id]
+                if not seq_valid.any():
+                    continue
+                seq_chunk_ids = opd_chunk_ids[seq_id][seq_valid]
+                if bool((seq_chunk_ids == -2).any()):
+                    opd_teacher_truncated_sequences += 1
+                valid_chunk_ids = seq_chunk_ids[seq_chunk_ids >= 0]
+                if valid_chunk_ids.numel() > 0:
+                    opd_chunk_count += int(torch.unique(valid_chunk_ids).numel())
+        opd_teacher_truncated_ratio = opd_teacher_truncated_sequences / max(opd_nonempty_sequences, 1)
         # ---
         if sentinel_mask.any():
             teacher_log_probs = torch.where(sentinel_mask, prior_log_probs, teacher_log_probs)
@@ -1271,6 +1286,10 @@ def compute_policy_loss_opd(
         "actor/pg_clipfrac_lower": pg_clipfrac_lower.detach().item(),
         "actor/opd_inf_tokens": opd_inf_tokens,
         "actor/opd_inf_ratio": opd_inf_ratio,
+        "actor/opd_valid_tokens": opd_valid_tokens,
+        "actor/opd_chunk_count": opd_chunk_count,
+        "actor/opd_teacher_truncated_sequences": opd_teacher_truncated_sequences,
+        "actor/opd_teacher_truncated_ratio": opd_teacher_truncated_ratio,
     }
     return pg_loss, pg_metrics
 

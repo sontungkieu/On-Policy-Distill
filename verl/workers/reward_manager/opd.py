@@ -1068,7 +1068,10 @@ class TeacherClient:
                 # core_algos (torch.where), so we DON'T blow away the whole seq here.
                 if teacher_truncated:
                     teacher_topk_logps_padded[i, :] = float('inf')
-                    teacher_chunk_ids_padded[i, :] = -1.0
+                    # -2 retains the same negative-id sentinel semantics as -1,
+                    # while allowing the policy-loss logger to count truncated
+                    # sequences separately from ordinary unaligned positions.
+                    teacher_chunk_ids_padded[i, :] = -2.0
                     warnings.warn(
                         f"[align seq {i}] teacher truncated: skipping entire sequence "
                         f"(stu_resp={len(student_resp_ids)}t, tec_resp={len(teacher_resp_ids)}t)"

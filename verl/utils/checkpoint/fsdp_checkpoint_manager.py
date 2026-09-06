@@ -15,10 +15,12 @@
 import json
 import logging
 import os
+import random
 import warnings
 from dataclasses import asdict, dataclass
 from typing import Optional
 
+import numpy as np
 import torch
 import torch.distributed
 from accelerate import init_empty_weights
@@ -94,6 +96,127 @@ class FSDPCheckpointManager(BaseCheckpointManager):
             processing_class=processing_class,
             checkpoint_config=checkpoint_config,
         )
+        self.portable = bool(checkpoint_config.get("portable", False)) if checkpoint_config else False
+        self.portable_seed = int(checkpoint_config.get("portable_seed", 44)) if checkpoint_config else 44
+
+    @staticmethod
+    def _portable_dir(local_path: str) -> str:
+        return os.path.join(local_path, "portable_dcp")
+
+    def _save_portable_checkpoint(self, local_path: str, global_step: int) -> None:
+        """Save model/optimizer with DCP so a new world size can reshard it."""
+        from reproduction.portable_checkpoint_backend import save_model_optimizer
+
+        portable_dir = self._portable_dir(local_path)
+        contents = save_model_optimizer(
+            portable_dir,
+            self.model,
+            self.optimizer,
+            save_model=self.should_save_model,
+            save_optimizer=self.should_save_optimizer,
+        )
+        torch.distributed.barrier()
+
+        if self.rank == 0:
+            portable_extra = {
+                "format": "torch-distributed-checkpoint-v1",
+                "global_step": int(global_step),
+                "saved_world_size": int(self.world_size),
+                "portable_seed": int(self.portable_seed),
+                "rng_policy_on_topology_change": "deterministic-reseed",
+                "lr_scheduler": self.lr_scheduler.state_dict() if self.lr_scheduler is not None else None,
+            }
+            extra_path = os.path.join(local_path, "portable_extra.pt")
+            pending_extra_path = extra_path + ".pending"
+            torch.save(portable_extra, pending_extra_path)
+            os.replace(pending_extra_path, extra_path)
+
+            manifest = {
+                "format": portable_extra["format"],
+                "global_step": portable_extra["global_step"],
+                "saved_world_size": portable_extra["saved_world_size"],
+                "portable_seed": portable_extra["portable_seed"],
+                "rng_policy_on_topology_change": portable_extra["rng_policy_on_topology_change"],
+                "contents": contents,
+            }
+            manifest_path = os.path.join(local_path, "portable_manifest.json")
+            pending_manifest_path = manifest_path + ".pending"
+            with open(pending_manifest_path, "w", encoding="utf-8") as stream:
+                json.dump(manifest, stream, indent=2, sort_keys=True)
+                stream.write("\n")
+            os.replace(pending_manifest_path, manifest_path)
+        torch.distributed.barrier()
+
+    def _load_portable_checkpoint(self, local_path: str, del_local_after_load: bool) -> None:
+        """Load a DCP checkpoint, resharding model and optimizer as needed."""
+        from reproduction.portable_checkpoint_backend import load_model_optimizer
+
+        if del_local_after_load:
+            raise ValueError("del_local_after_load is unsafe for a shared portable checkpoint")
+
+        manifest_path = os.path.join(local_path, "portable_manifest.json")
+        extra_path = os.path.join(local_path, "portable_extra.pt")
+        if not os.path.isfile(manifest_path) or not os.path.isfile(extra_path):
+            raise FileNotFoundError(f"Incomplete portable checkpoint at {local_path}")
+        with open(manifest_path, encoding="utf-8") as stream:
+            manifest = json.load(stream)
+        if manifest.get("format") != "torch-distributed-checkpoint-v1":
+            raise ValueError(f"Unsupported portable checkpoint format: {manifest.get('format')}")
+
+        expected_contents = {
+            name
+            for name, enabled in (
+                ("model", self.should_load_model),
+                ("optimizer", self.should_load_optimizer),
+            )
+            if enabled
+        }
+        saved_contents = set(manifest.get("contents", []))
+        if not expected_contents.issubset(saved_contents):
+            raise ValueError(
+                f"Portable checkpoint contents {sorted(saved_contents)} do not satisfy "
+                f"requested load contents {sorted(expected_contents)}"
+            )
+
+        load_model_optimizer(
+            self._portable_dir(local_path),
+            self.model,
+            self.optimizer,
+            load_model=self.should_load_model,
+            load_optimizer=self.should_load_optimizer,
+        )
+
+        if self.should_load_extra:
+            exact_extra_path = os.path.join(
+                local_path, f"extra_state_world_size_{self.world_size}_rank_{self.rank}.pt"
+            )
+            saved_world_size = int(manifest["saved_world_size"])
+            if saved_world_size == self.world_size and os.path.isfile(exact_extra_path):
+                exact_extra = torch.load(exact_extra_path, weights_only=False)
+                if exact_extra.get("lr_scheduler") is not None and self.lr_scheduler is not None:
+                    self.lr_scheduler.load_state_dict(exact_extra["lr_scheduler"])
+                if "rng" in exact_extra:
+                    self.load_rng_state(exact_extra["rng"])
+                rng_resume_mode = "exact-rank-state"
+            else:
+                portable_extra = torch.load(extra_path, map_location="cpu", weights_only=False)
+                if portable_extra.get("lr_scheduler") is not None and self.lr_scheduler is not None:
+                    self.lr_scheduler.load_state_dict(portable_extra["lr_scheduler"])
+                global_step = int(portable_extra["global_step"])
+                seed = (int(portable_extra["portable_seed"]) + 1_000_003 * global_step + self.rank) % (2**32)
+                random.seed(seed)
+                np.random.seed(seed)
+                torch.manual_seed(seed)
+                if torch.cuda.is_available():
+                    torch.cuda.manual_seed_all(seed)
+                rng_resume_mode = "deterministic-topology-reseed"
+            log_with_rank(
+                f"Loaded portable checkpoint from {local_path}; saved_world_size={saved_world_size}, "
+                f"current_world_size={self.world_size}, rng_resume_mode={rng_resume_mode}",
+                rank=self.rank,
+                logger=logger,
+            )
+        torch.distributed.barrier()
 
     def load_checkpoint(self, local_path: str, hdfs_path: str = None, del_local_after_load=False):
         """
@@ -109,6 +232,15 @@ class FSDPCheckpointManager(BaseCheckpointManager):
             del_local_after_load: Remove local files after loading.
         """
         if local_path is None:
+            return
+
+        if self.portable:
+            portable_metadata = os.path.join(self._portable_dir(local_path), ".metadata")
+            if not os.path.isfile(portable_metadata):
+                raise FileNotFoundError(
+                    f"Portable resume was requested, but DCP metadata is missing: {portable_metadata}"
+                )
+            self._load_portable_checkpoint(local_path, del_local_after_load)
             return
 
         # check if the checkpoint_load_contents is valid
@@ -366,5 +498,8 @@ class FSDPCheckpointManager(BaseCheckpointManager):
 
             # wait for rank0 to dump hf_model to local
             torch.distributed.barrier()
+
+        if self.portable:
+            self._save_portable_checkpoint(local_path, global_step)
 
         self.previous_saved_paths.append(local_path)

@@ -128,6 +128,10 @@ trainer:
   # Total training steps (can be set explicitly or derived from epochs)
   total_training_steps: null
 
+  # Optional early-stop boundary that does not alter the optimizer scheduler's
+  # planned total_training_steps. Used for phased save/resume qualification.
+  stop_after_global_step: null
+
   # Project name for experiment tracking (e.g., wandb)
   project_name: verl_examples
 

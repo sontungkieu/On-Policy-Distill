@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -xeuo pipefail
 
-project_name='ON_POLICY_DISTILL'
-exp_name='OPD'
+project_name=${PROJECT_NAME:-'ON_POLICY_DISTILL'}
+exp_name=${EXP_NAME:-'OPD'}
 
 adv_estimator=opd
 
@@ -11,21 +11,22 @@ kl_coef=0.0
 use_kl_loss=False
 kl_loss_coef=0.0
 
-clip_ratio_low=0.2
-clip_ratio_high=0.28
+clip_ratio_low=${PPO_CLIP_RATIO_LOW:-0.2}
+clip_ratio_high=${PPO_CLIP_RATIO_HIGH:-0.28}
+dual_clip_ratio=${DUAL_CLIP_RATIO:-10.0}
 
 # Clamp per-token advantage to [-opd_loss_max_clamp, +opd_loss_max_clamp].
 # Prevents extreme teacher-student logp gaps (e.g. -30) from dominating the gradient.
-opd_loss_max_clamp=10.0
+opd_loss_max_clamp=${OPD_ADVANTAGE_CLAMP:-10.0}
 
-max_prompt_length=$((1024 * 1))
-max_response_length=$((1024 * 16))
+max_prompt_length=${MAX_PROMPT_LENGTH:-$((1024 * 1))}
+max_response_length=${MAX_RESPONSE_LENGTH:-$((1024 * 16))}
 
 loss_agg_mode="token-mean"
 
-train_prompt_bsz=128
-n_resp_per_prompt=1
-train_prompt_mini_bsz=128
+train_prompt_bsz=${TRAIN_PROMPT_BSZ:-128}
+n_resp_per_prompt=${SAMPLES_PER_PROMPT:-1}
+train_prompt_mini_bsz=${TRAIN_PROMPT_MINI_BSZ:-128}
 
 # Ray cluster
 NNODES=${NNODES:-2}
@@ -37,6 +38,7 @@ MODEL_PATH=${MODEL_PATH:-"${RAY_DATA_HOME}/models/student"}
 CKPTS_DIR=${CKPTS_DIR:-"${RAY_DATA_HOME}/ckpts/${project_name}/${exp_name}"}
 TRAIN_FILE=${TRAIN_FILE:-"${RAY_DATA_HOME}/data/train.parquet"}
 TEST_FILE=${TEST_FILE:-"${RAY_DATA_HOME}/data/val.parquet"}
+export TENSORBOARD_DIR=${TENSORBOARD_DIR:-"${CKPTS_DIR}/tensorboard"}
 
 # Teacher server configuration
 export TEACHER_SERVER_IP=${TEACHER_SERVER_IP:-"127.0.0.1"}
@@ -47,22 +49,48 @@ export TEACHER_MAX_SEQ_LEN=${TEACHER_MAX_SEQ_LEN:-"30720"}
 export HYDRA_FULL_ERROR=1
 
 # Sampling parameters
-temperature=1.0
-top_p=1.0
-top_k=-1  # -1 for vLLM rollout
+temperature=${ROLLOUT_TEMPERATURE:-1.0}
+top_p=${ROLLOUT_TOP_P:-1.0}
+top_k=${ROLLOUT_TOP_K:--1}  # -1 for vLLM rollout
 
 val_top_p=0.95
 val_top_k=20
 val_temperature=0.6
 
 # Performance parameters
-sp_size=2
+sp_size=${SP_SIZE:-2}
 use_dynamic_bsz=True
 actor_ppo_max_token_len=$(((max_prompt_length + max_response_length) * 2))
 infer_ppo_max_token_len=$(((max_prompt_length + max_response_length) * 3))
-offload=True
-gen_tp=2
-fsdp_size=8
+offload=${OFFLOAD:-True}
+gen_tp=${GEN_TP:-2}
+fsdp_size=${FSDP_SIZE:-8}
+
+# Scientific schedule and bounded qualification phase are separate. Keeping
+# TOTAL_TRAINING_STEPS=500 preserves the released constant-with-warmup
+# scheduler while STOP_AFTER_GLOBAL_STEP lets a run save/exit at step 10 or 20.
+total_training_steps=${TOTAL_TRAINING_STEPS:-500}
+stop_after_global_step=${STOP_AFTER_GLOBAL_STEP:-${total_training_steps}}
+lr_warmup_steps=${LR_WARMUP_STEPS:-10}
+save_freq=${SAVE_FREQ:-500}
+resume_mode=${RESUME_MODE:-auto}
+portable_checkpoint=${PORTABLE_CHECKPOINT:-True}
+portable_seed=${PORTABLE_SEED:-44}
+data_seed=${DATA_SEED:-44}
+actor_lr=${ACTOR_LR:-1e-6}
+weight_decay=${WEIGHT_DECAY:-0.01}
+gradient_clip=${GRADIENT_CLIP:-1.0}
+dpca_track_id=${DPCA_TRACK_ID:-unclassified}
+dpca_profile_sha256=${DPCA_PROFILE_SHA256:-unrecorded}
+teacher_revision=${TEACHER_REVISION:-unrecorded}
+student_revision=${STUDENT_REVISION:-unrecorded}
+train_manifest_sha256=${TRAIN_MANIFEST_SHA256:-unrecorded}
+val_manifest_sha256=${VAL_MANIFEST_SHA256:-unrecorded}
+
+resume_args=()
+if [[ -n "${RESUME_FROM_PATH:-}" ]]; then
+    resume_args+=(trainer.resume_from_path="${RESUME_FROM_PATH}")
+fi
 
 python3 -m verl.trainer.main_ppo \
     data.train_files="${TRAIN_FILE}" \
@@ -70,7 +98,7 @@ python3 -m verl.trainer.main_ppo \
     data.prompt_key=prompt \
     data.truncation='left' \
     data.shuffle=True \
-    data.seed=44 \
+    data.seed=${data_seed} \
     data.max_prompt_length=${max_prompt_length} \
     data.max_response_length=${max_response_length} \
     data.train_batch_size=${train_prompt_bsz} \
@@ -82,7 +110,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.kl_loss_coef=${kl_loss_coef} \
     actor_rollout_ref.actor.clip_ratio_low=${clip_ratio_low} \
     actor_rollout_ref.actor.clip_ratio_high=${clip_ratio_high} \
-    actor_rollout_ref.actor.clip_ratio_c=10.0 \
+    actor_rollout_ref.actor.clip_ratio_c=${dual_clip_ratio} \
     actor_rollout_ref.actor.policy_loss.opd_loss_max_clamp=${opd_loss_max_clamp} \
     actor_rollout_ref.model.use_remove_padding=True \
     +actor_rollout_ref.model.override_config.max_position_embeddings=32768 \
@@ -97,14 +125,14 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.mode=sync \
     actor_rollout_ref.model.path="${MODEL_PATH}" \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
-    actor_rollout_ref.actor.optim.lr=1e-6 \
-    actor_rollout_ref.actor.optim.lr_warmup_steps=10 \
-    actor_rollout_ref.actor.optim.weight_decay=0.01 \
+    actor_rollout_ref.actor.optim.lr=${actor_lr} \
+    actor_rollout_ref.actor.optim.lr_warmup_steps=${lr_warmup_steps} \
+    actor_rollout_ref.actor.optim.weight_decay=${weight_decay} \
     actor_rollout_ref.actor.ppo_mini_batch_size=${train_prompt_mini_bsz} \
     actor_rollout_ref.actor.fsdp_config.param_offload=${offload} \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=${offload} \
     actor_rollout_ref.actor.entropy_coeff=0 \
-    actor_rollout_ref.actor.grad_clip=1.0 \
+    actor_rollout_ref.actor.grad_clip=${gradient_clip} \
     actor_rollout_ref.actor.loss_agg_mode=${loss_agg_mode} \
     actor_rollout_ref.nccl_timeout=72000 \
     actor_rollout_ref.actor.ulysses_sequence_parallel_size=${sp_size} \
@@ -124,19 +152,29 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.fsdp_config.param_offload=${offload} \
     actor_rollout_ref.ref.ulysses_sequence_parallel_size=${sp_size} \
     actor_rollout_ref.actor.fsdp_config.fsdp_size=${fsdp_size} \
+    actor_rollout_ref.actor.checkpoint.portable=${portable_checkpoint} \
+    actor_rollout_ref.actor.checkpoint.portable_seed=${portable_seed} \
     actor_rollout_ref.ref.fsdp_config.fsdp_size=${fsdp_size} \
     reward_model.reward_manager=opd \
     reward_model.enable=False \
-    trainer.logger='["console","wandb"]' \
+    trainer.logger='["console","wandb","tensorboard"]' \
     trainer.project_name="${project_name}" \
     trainer.experiment_name="${exp_name}" \
     trainer.n_gpus_per_node="${NGPUS_PER_NODE}" \
     trainer.nnodes="${NNODES}" \
     trainer.val_before_train=False \
     trainer.test_freq=25 \
-    trainer.save_freq=500 \
+    trainer.save_freq=${save_freq} \
     trainer.total_epochs=10 \
-    trainer.total_training_steps=500 \
+    trainer.total_training_steps=${total_training_steps} \
+    trainer.stop_after_global_step=${stop_after_global_step} \
     trainer.default_local_dir="${CKPTS_DIR}" \
-    trainer.resume_mode=auto \
-    trainer.log_val_generations=10
+    trainer.resume_mode=${resume_mode} \
+    trainer.log_val_generations=10 \
+    +experiment_contract.track_id=${dpca_track_id} \
+    +experiment_contract.profile_sha256=${dpca_profile_sha256} \
+    +experiment_contract.teacher_revision=${teacher_revision} \
+    +experiment_contract.student_revision=${student_revision} \
+    +experiment_contract.train_manifest_sha256=${train_manifest_sha256} \
+    +experiment_contract.val_manifest_sha256=${val_manifest_sha256} \
+    "${resume_args[@]}"
