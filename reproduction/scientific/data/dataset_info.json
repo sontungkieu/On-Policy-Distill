@@ -1,0 +1,18 @@
+{
+  "openthoughts3_400k_pinned": {
+    "file_name": "openthoughts3-1.2m/data",
+    "formatting": "sharegpt",
+    "columns": {
+      "messages": "conversations"
+    },
+    "tags": {
+      "role_tag": "from",
+      "content_tag": "value",
+      "user_tag": "human",
+      "assistant_tag": "gpt",
+      "system_tag": "system",
+      "observation_tag": "observation",
+      "function_tag": "function_call"
+    }
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "run_id": "dpca8b-sft50-b200x2-fsdp-fa2-20260906-r10",
+  "track_id": "dpca_8b_scientific",
+  "models": {
+    "teacher": {
+      "repo_id": "Qwen/Qwen3-8B",
+      "revision": "b968826d9c46dd6066d109eabc6255188de91218"
+    },
+    "student_base": {
+      "repo_id": "unsloth/Meta-Llama-3.1-8B",
+      "revision": "e9a141a2091ea561b96483212645a2a05e6f99fc",
+      "upstream_repo_id": "meta-llama/Meta-Llama-3.1-8B",
+      "upstream_revision": "d04e592bb4f6aa9cfee91e2e20afa771667e1d4b"
+    }
+  },
+  "sft": {
+    "framework": "llamafactory",
+    "framework_version": "0.9.4",
+    "dataset": {
+      "repo_id": "open-thoughts/OpenThoughts3-1.2M",
+      "revision": "61bcf9d4eb38b30295efc2021227a63cc5bb34c8",
+      "config": "default",
+      "split": "train",
+      "first_shard": 0,
+      "shard_count": 40,
+      "total_shards": 120,
+      "subset_rows": 400000,
+      "selection": "first-40-versioned-parquet-shards"
+    },
+    "optimizer_steps": 50,
+    "global_batch_size": 128,
+    "per_device_micro_batch_size": 1,
+    "gradient_accumulation_steps": 64,
+    "gpu_count": 2,
+    "maximum_sequence_length": 16384,
+    "learning_rate": 0.0001,
+    "optimizer": "adamw_torch",
+    "weight_decay": 0.01,
+    "gradient_clip": 1.0,
+    "scheduler": "constant",
+    "warmup_steps": 0,
+    "precision": "bfloat16",
+    "template": "llama3",
+    "packing": false,
+    "attention_backend": "fa2",
+    "attention_kernel_policy": "external_fa2",
+    "tracking_variant": "flash-attention-2",
+    "tf32": true,
+    "pytorch_alloc_conf": "expandable_segments:True",
+    "torch_empty_cache_steps": 1,
+    "tokenized_path": "/workspace/cache/openthoughts3-400k-llama3-cutoff16384",
+    "distributed": {
+      "strategy": "fsdp_full_shard",
+      "transformer_layer_cls_to_wrap": "LlamaDecoderLayer",
+      "activation_checkpointing": false,
+      "cpu_ram_efficient_loading": true,
+      "state_dict_type": "FULL_STATE_DICT"
+    },
+    "gradient_checkpointing": true,
+    "disable_gradient_checkpointing": false,
+    "use_reentrant_gc": true,
+    "seed": 44,
+    "save_step": 50
+  },
+  "opd": {
+    "framework": "verl",
+    "student_checkpoint": "/workspace/runs/dpca8b-sft50-b200x2-fsdp-fa2-20260906-r10/checkpoint-50",
+    "datasets": ["DeepMath", "OpenThoughts"],
+    "prompts_per_dataset": 20000,
+    "optimizer_steps": 100,
+    "planned_optimizer_steps": 500,
+    "warmup_steps": 10,
+    "global_batch_size": 128,
+    "prompt_max_tokens": 1024,
+    "response_max_tokens": 16384,
+    "samples_per_prompt": 1,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "top_k": -1,
+    "learning_rate": 0.000001,
+    "optimizer": "AdamW",
+    "weight_decay": 0.01,
+    "gradient_clip": 1.0,
+    "precision": "bfloat16",
+    "seed": 44,
+    "clip_ratio_low": 0.2,
+    "clip_ratio_high": 0.28,
+    "dual_clip_ratio": 10.0,
+    "advantage_clamp": 10.0,
+    "loss_aggregation": "token-mean"
+  },
+  "tracking": {
+    "wandb_entity": "kieusontung8-hanoi-university-of-science-and-technology",
+    "wandb_project": "dpca-breaking-token-barrier-reproduction",
+    "tensorboard": true,
+    "checkpoint": true,
+    "metrics_jsonl": true,
+    "telemetry": {
+      "schema_version": 1,
+      "unified_sinks": ["wandb", "tensorboard", "jsonl"],
+      "log_consumed_batch_statistics": true,
+      "log_rank_cuda_allocator": true,
+      "log_nonfinite_diagnostics": true,
+      "log_runtime_and_lineage_artifact": true
+    }
+  }
+}

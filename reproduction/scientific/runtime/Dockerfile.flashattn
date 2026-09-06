@@ -1,0 +1,32 @@
+FROM pytorch/pytorch:2.9.0-cuda12.8-cudnn9-devel@sha256:97ec2a667dd7560c615bf50a95b2fb85a673ae233a55da1706e8e04e6d6d518e
+
+RUN python -m pip install --no-cache-dir uv==0.10.2 \
+    && test "$(uv --version)" = "uv 0.10.2"
+
+ENV UV_LINK_MODE=copy \
+    UV_NO_PROGRESS=1 \
+    TOKENIZERS_PARALLELISM=false \
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    WANDB_MODE=online \
+    FLASH_ATTN_CUDA_ARCHS=100 \
+    MAX_JOBS=8
+
+WORKDIR /opt/dpca
+
+COPY pyproject.toml uv.lock /opt/scientific-env/
+RUN env -u UV_INDEX_URL -u UV_DEFAULT_INDEX -u PIP_INDEX_URL -u PIP_TRUSTED_HOST \
+      uv export --project /opt/scientific-env --locked --no-dev --no-emit-project --no-hashes \
+      --no-emit-package flash-attn \
+      --output-file /tmp/requirements.lock.txt \
+    && env -u UV_INDEX_URL -u UV_DEFAULT_INDEX -u PIP_INDEX_URL -u PIP_TRUSTED_HOST \
+      uv pip install --system --no-cache --requirements /tmp/requirements.lock.txt \
+    && env -u UV_INDEX_URL -u UV_DEFAULT_INDEX -u PIP_INDEX_URL -u PIP_TRUSTED_HOST \
+      uv pip install --system --no-cache --no-build-isolation flash-attn==2.8.3 \
+    && python -c "import flash_attn; assert flash_attn.__version__ == '2.8.3'" \
+    && rm /tmp/requirements.lock.txt
+
+LABEL org.opencontainers.image.source="https://github.com/ivanniu/On-Policy-Distill" \
+      ai.dpca.runtime="uv-lock-flash-attn-2.8.3-sm100" \
+      ai.dpca.phase="sft-initialization" \
+      ai.dpca.sequence-length="16384" \
+      ai.dpca.global-batch-size="128"

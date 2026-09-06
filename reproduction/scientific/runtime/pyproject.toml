@@ -1,0 +1,20 @@
+[project]
+name = "dpca-scientific-runtime"
+version = "0.1.0"
+description = "Locked LLaMA-Factory SFT and VeRL DPCA scientific pipeline runtime"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "flash-attn==2.8.3",
+  "huggingface-hub==0.36.0",
+  "llamafactory==0.9.4",
+  "ninja==1.13.0",
+  "pyarrow==22.0.0",
+  "tensorboard==2.20.0",
+  "torch==2.9.0",
+  "torchaudio==2.9.0",
+  "torchvision==0.24.0",
+  "wandb==0.23.1"
+]
+
+[tool.uv]
+package = false
