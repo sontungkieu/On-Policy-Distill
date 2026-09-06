@@ -1,0 +1,84 @@
+{
+  "evidence_levels": {
+    "paper_reported": "Reported in arXiv:2606.09456v1, Appendix A, Table 4.",
+    "official_code_only": "Present in the authors' public launcher at the pinned source commit, but not reported in Table 4.",
+    "smoke_only": "Reduced qualification setting; not a paper configuration and not scientific evidence.",
+    "implementation_validation": "A real optimizer run through upstream DPCA/loss on reduced public models; validates integration only, not paper efficacy."
+  },
+  "paper_reported": {
+    "framework": "VeRL",
+    "teacher_student_pairs": [
+      "Qwen3-8B -> Llama-3.1-8B-SFT",
+      "DeepSeek-R1 -> DeepSeek-R1-Distill-Qwen-7B"
+    ],
+    "student_initialization": "corresponding SFT checkpoint",
+    "opd_data": "DeepMath and OpenThoughts prompts",
+    "global_batch_size_prompts": 128,
+    "max_prompt_tokens": 1024,
+    "max_response_tokens": 16384,
+    "learning_rate": 1e-06,
+    "optimizer": "AdamW",
+    "gradient_clip": 1.0,
+    "precision": "bf16",
+    "rollout": {
+      "temperature": 1.0,
+      "top_p": 1.0,
+      "top_k": -1
+    }
+  },
+  "official_code_only": {
+    "source": "cross_distill.sh at 927a8264f2e303b7f82c2d331a58fd4240c8805a",
+    "seed": 44,
+    "optimizer_warmup_steps": 10,
+    "weight_decay": 0.01,
+    "clip_ratio_low": 0.2,
+    "clip_ratio_high": 0.28,
+    "clip_ratio_c": 10.0,
+    "per_token_advantage_clamp": 10.0,
+    "total_training_steps": 500,
+    "total_epochs": 10,
+    "topology": {
+      "nodes": 2,
+      "gpus_per_node": 8,
+      "ulysses_sequence_parallel_size": 2,
+      "rollout_tensor_parallel_size": 2,
+      "fsdp_size": 8
+    }
+  },
+  "smoke_only": {
+    "purpose": "DPCA and semantic-prior implementation qualification",
+    "gpu": "B200:1",
+    "models": "none",
+    "datasets": "none",
+    "optimizer_updates": 0,
+    "checks": [
+      "pinned source hashes",
+      "paper-reported launcher contract",
+      "DPCA minimal synchronized chunks",
+      "teacher chunk log-mass conservation",
+      "semantic-prior projected loss",
+      "CUDA bf16 matrix multiplication"
+    ]
+  },
+  "implementation_validation": {
+    "run_id": "dpca-2xb200-10step-20260905-r2",
+    "gpu_topology": "one container with 2x NVIDIA B200; teacher on cuda:0, student on cuda:1",
+    "teacher": "Qwen/Qwen2.5-0.5B-Instruct@7ae557604adf67be50417f59c2c2f167def9a775",
+    "student": "HuggingFaceTB/SmolLM2-360M-Instruct@a10cc1512eabd3dde888204e902eca88bddb4951",
+    "optimizer_steps": 10,
+    "batch_size_prompts": 1,
+    "max_response_tokens": 32,
+    "dataset": "10 versioned local arithmetic prompts",
+    "logging": [
+      "Weights & Biases online",
+      "TensorBoard event files",
+      "JSONL step metrics"
+    ],
+    "not_claimed": [
+      "paper checkpoint reproduction",
+      "matched-budget efficacy",
+      "7B/8B scaling behavior",
+      "VeRL/vLLM/FSDP multi-node qualification"
+    ]
+  }
+}

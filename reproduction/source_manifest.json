@@ -1,0 +1,45 @@
+{
+  "repository": "https://github.com/ivanniu/On-Policy-Distill.git",
+  "branch": "main",
+  "commit": "927a8264f2e303b7f82c2d331a58fd4240c8805a",
+  "paper": {
+    "title": "Breaking the Tokenizer Barrier: On-Policy Distillation across Model Families",
+    "arxiv_id": "2606.09456",
+    "version": "v1",
+    "submitted": "2026-06-08"
+  },
+  "overlay": {
+    "purpose": "phased 10-step warmup plus 10-step post-warmup qualification with portable 1/2/4-GPU resume",
+    "base_commit": "927a8264f2e303b7f82c2d331a58fd4240c8805a"
+  },
+  "sha256": {
+    "cross_distill.sh": "391a795c1dbaa36f8e36e796c63876a633b28d6a15c1a1df11c79d2e67645552",
+    "requirements.txt": "72c69931cc9b70103137fa3f378e26694c6b1abdbb46aa99dc34a6c66addd990",
+    "verl/workers/reward_manager/opd.py": "a24be172575818e3b44ac6287d68e9984a956c467f2e3baaa90d6c2ad365fe3e",
+    "verl/trainer/ppo/core_algos.py": "dd0d93e9ff039b36fa2ca565d730c4f30690dc5b04078ac3dfb28ba2c442ccd2"
+  },
+  "effective_sha256": {
+    "cross_distill.sh": "aab5e8de23ab4ad34c5fcacf50cb7e7511038d003874f0cfdb0ff04f3f535e0b",
+    "requirements.txt": "72c69931cc9b70103137fa3f378e26694c6b1abdbb46aa99dc34a6c66addd990",
+    "verl/workers/reward_manager/opd.py": "131939ea653a448a0264dccb27f0d9c012a1b14391a6842a5bff7c2f3cb6f216",
+    "verl/trainer/ppo/core_algos.py": "522aecb5dddeee804935337124c20477479769f38a7d7fd4afcdfafdcaed0cc6",
+    "verl/trainer/config/config.py": "efa827497ceb4ba7885d716775cb55ad75cfbcacd6ce9a12c1fc03edf8328c44",
+    "verl/trainer/config/actor/actor.yaml": "6f34f9cc193aa3d9519b91a3c17bdc1aedc13f3d987b23afd952ab1d1236aa09",
+    "verl/trainer/config/ppo_trainer.yaml": "e298da8bb8cdd47d3de1f3c06d42253968b95a9af9700d7983f962f1c1e39134",
+    "verl/trainer/ppo/ray_trainer.py": "b767d44b287a6bc76fc4b15f6e1f60cbd21642e3932a7e937c07887e92fe1f83",
+    "verl/utils/checkpoint/fsdp_checkpoint_manager.py": "96f8e8fbfb502346cac5b777ccaa191cf7ec2a9a61bd15f6dde9342a9b5182d4",
+    "reproduction/portable_checkpoint_backend.py": "42677f6a758dc458c1652a935302f41c586e82a038985327fd0ca483f47a003c",
+    "reproduction/dpca_phased_run.py": "6daf2c81d544b1b88621d67b5f2693947831c54089f678d364f065a8982d8da5",
+    "reproduction/configs/dpca_paper_8b.json": "5450cbae8aeb1a772e77d208194e127b4caeabd4e24f1f7a6e0f9684c538d3cb",
+    "reproduction/configs/dpca_common_4b1b.json": "5e06e8e9b5bbb4a797a0a350315592cf7141ef066ccbe51500dd80bfdd6e45f2",
+    "reproduction/configs/dpca_paper8b_2gpu_10step_timing.json": "293d409cf36ca1f3ab4e65fbd3dd863c23dcdf7694466784185022868fe4140d",
+    "reproduction/dpca_2gpu_train.py": "d038818fdfa06a02c563ba6bd6491a91040a816554516ef0732e867274fabe9f",
+    "reproduction/configs/dpca_paper8b_1gpu_10step_timing.json": "18a5c88e34e2c31909bbd0e0e7020b67cf679ae842a86822193fba06935d5674",
+    "reproduction/modal_dpca_paper8b_1gpu_timing.py": "a2b19d98433f264d09e59958239fe53ce07c4a64e541d3afac8c9c95b74f88dc",
+    "reproduction/wandb_schema.py": "74456d848ce7003ab2928a10a78386d19cf881d098816e07d1d33ce1e9007566",
+    "reproduction/Dockerfile.dpca-paper8b-timing": "b160f631ea6378b2b7f832344630bb95b67fc861fcf204b70d41a4edfcfc62aa",
+    "reproduction/modal_dpca_paper8b_timing.py": "3cb4116b124480a6fec93adb56dcfdf689a811b0c516fbbf152da62b76739a8b",
+    "reproduction/pyproject.toml": "75284bdd078ddffd2598c2a11c88a07686f79d7bf8d4a7ee335109836f97ed04",
+    "reproduction/uv.lock": "5b84f8f17827c049ec67157ed53b3553d53e063c28dbf28d188efe29836c9290"
+  }
+}
